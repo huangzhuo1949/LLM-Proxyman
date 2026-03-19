@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Proxyman</title>
+    <style>
+        :root {
+            /* Mac Dark Mode inspired theme */
+            --bg-base: #1e1e1e;
+            --bg-sidebar: #252526;
+            --bg-list: #1e1e1e;
+            --bg-details: #1e1e1e;
+            --bg-hover: #2d2d2d;
+            --bg-selected: #37373d;
+            
+            --border: #3e3e42;
+            --border-light: #454545;
+            
+            --text-primary: #cccccc;
+            --text-secondary: #858585;
+            
+            --accent: #007acc;
+            --req-get: #569cd6;
+            --req-post: #ce9178;
+            --status-ok: #4ec9b0;
+            --status-err: #f48771;
+            
+            --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --font-mono: "SF Mono", "Menlo", "Monaco", "Consolas", monospace;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body { 
+            font-family: var(--font-ui); 
+            background: var(--bg-base); 
+            color: var(--text-primary); 
+            height: 100vh; 
+            display: flex; 
+            flex-direction: column; 
+            overflow: hidden; 
+            font-size: 13px;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #424242; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #4f4f4f; }
+
+        header { 
+            height: 48px;
+            background: #333333; 
+            border-bottom: 1px solid var(--border); 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            padding: 0 20px;
+            -webkit-app-region: drag; /* Electron app feel */
+        }
+        
+        .logo { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        .header-actions { display: flex; gap: 10px; align-items: center; }
+        .proxy-info { font-size: 12px; color: var(--text-secondary); background: #1e1e1e; padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border); }
+        .btn-clear { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); padding: 4px 10px; border-radius: 4px; cursor: pointer; transition: 0.2s; font-size: 12px; }
+        .btn-clear:hover { color: var(--text-primary); background: var(--bg-hover); }
+
+        .layout { 
+            display: flex; 
+            flex: 1; 
+            overflow: hidden; 
+        }
+
+        /* 1. Left Navigation - Agents */
+        .nav-sidebar { 
+            width: 220px; 
+            background: var(--bg-sidebar); 
+            border-right: 1px solid var(--border); 
+            display: flex; 
+            flex-direction: column; 
+            padding: 15px 0;
+        }
+        .nav-group-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            font-weight: 600;
+            padding: 0 20px;
+            margin-bottom: 10px;
+            letter-spacing: 0.5px;
+        }
+        .nav-menu { list-style: none; }
+        .nav-item { 
+            padding: 8px 20px; 
+            cursor: pointer; 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between;
+            color: var(--text-primary);
+        }
+        .nav-item:hover { background: var(--bg-hover); }
+        .nav-item.active { background: var(--accent); color: #fff; font-weight: 500; }
+        .nav-count { font-size: 11px; background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 10px; }
+        .nav-item.active .nav-count { background: rgba(255,255,255,0.2); }
+
+        /* 2. Middle Column - Request List */
+        .list-column {
+            width: 320px;
+            background: var(--bg-list);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .list-header {
+            padding: 10px 15px;
+            border-bottom: 1px solid var(--border);
+            background: #252526;
+            font-weight: 600;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .req-list { flex: 1; overflow-y: auto; list-style: none; }
+        
+        .req-item { 
+            padding: 12px 15px; 
+            border-bottom: 1px solid var(--border); 
+            cursor: pointer; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 6px;
+        }
+        .req-item:hover { background: var(--bg-hover); }
+        .req-item.active { background: var(--bg-selected); box-shadow: inset 3px 0 0 var(--accent); }
+        
+        .req-top { display: flex; justify-content: space-between; align-items: center; }
+        .req-method { font-weight: 700; font-size: 11px; }
+        .method-GET { color: var(--req-get); }
+        .method-POST { color: var(--req-post); }
+        
+        .req-status { font-weight: 600; font-size: 11px; }
+        .status-2xx { color: var(--status-ok); }
+        .status-err { color: var(--status-err); }
+        .status-pending { color: var(--text-secondary); font-style: italic; }
+        
+        .req-url { color: var(--text-primary); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+        
+        .req-bottom { display: flex; justify-content: space-between; align-items: center; }
+        .req-time { color: var(--text-secondary); font-size: 11px; }
+        .badges { display: flex; gap: 4px; }
+        .badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border-light); color: var(--text-secondary); font-weight: 500; }
+        .req-item.active .badge { border-color: #555; }
+
+        /* 3. Right Pane - Detail View */
+        .detail-pane { 
+            flex: 1; 
+            display: flex; 
+            flex-direction: column; 
+            background: var(--bg-details); 
+            overflow: hidden;
+        }
+        
+        .placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary); }
+        .placeholder svg { width: 48px; height: 48px; margin-bottom: 15px; opacity: 0.5; }
+
+        .detail-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid var(--border);
+            background: #252526;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .detail-method { font-family: var(--font-mono); font-weight: bold; font-size: 14px; }
+        .detail-url { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: var(--font-mono); font-size: 13px; color: var(--text-primary); }
+        
+        .tabs { 
+            display: flex; 
+            background: var(--bg-list); 
+            border-bottom: 1px solid var(--border);
+            padding: 0 10px;
+        }
+        .tab { 
+            padding: 10px 15px; 
+            cursor: pointer; 
+            font-size: 12px; 
+            font-weight: 500;
+            color: var(--text-secondary);
+            border-bottom: 2px solid transparent;
+            margin-bottom: -1px;
+        }
+        .tab:hover { color: var(--text-primary); }
+        .tab.active { color: var(--text-primary); border-bottom-color: var(--accent); }
+
+        .content-area { 
+            flex: 1; 
+            overflow-y: auto; 
+            padding: 20px; 
+            display: none; 
+            font-family: var(--font-mono); 
+            font-size: 12px; 
+            line-height: 1.5;
+            background: var(--bg-base);
+        }
+        .content-area.active { display: block; }
+
+        /* JSON formatting */
+        pre { margin: 0; white-space: pre-wrap; word-wrap: break-word; }
+        .json-key { color: #9cdcfe; }
+        .json-string { color: #ce9178; }
+        .json-number { color: #b5cea8; }
+        .json-boolean { color: #569cd6; }
+        
+        .stream-chunk { display: inline; color: #d4d4d4; }
+        
+        .table-view { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        .table-view td { padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: top; word-break: break-all; }
+        .table-view tr:last-child td { border-bottom: none; }
+        .table-view td:first-child { font-weight: 500; width: 35%; color: #9cdcfe; }
+
+        .empty-state { color: var(--text-secondary); font-style: italic; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+            LLM Proxyman
+        </div>
+        <div class="header-actions">
+            <button class="btn-clear" onclick="clearRequests()">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                Clear
+            </button>
+            <div class="proxy-info">Proxy: 127.0.0.1:10080</div>
+        </div>
+    </header>
+
+    <div class="layout">
+        <!-- Left Nav (Agents Filter) -->
+        <aside class="nav-sidebar">
+            <div class="nav-group-title">Agents</div>
+            <ul class="nav-menu">
+                <li class="nav-item active" onclick="setFilter('all')" id="filter-all">
+                    <span>All Requests</span>
+                    <span class="nav-count" id="count-all">0</span>
+                </li>
+                <li class="nav-item" onclick="setFilter('opencode')" id="filter-opencode">
+                    <span>OpenCode</span>
+                    <span class="nav-count" id="count-opencode">0</span>
+                </li>
+                <li class="nav-item" onclick="setFilter('claude')" id="filter-claude">
+                    <span>Claude Code</span>
+                    <span class="nav-count" id="count-claude">0</span>
+                </li>
+                <li class="nav-item" onclick="setFilter('codex')" id="filter-codex">
+                    <span>Codex</span>
+                    <span class="nav-count" id="count-codex">0</span>
+                </li>
+                <li class="nav-item" onclick="setFilter('gemini')" id="filter-gemini">
+                    <span>Gemini CLI</span>
+                    <span class="nav-count" id="count-gemini">0</span>
+                </li>
+            </ul>
+        </aside>
+
+        <!-- Middle Column (Request List) -->
+        <div class="list-column">
+            <div class="list-header" id="listHeaderTitle">All Requests</div>
+            <ul class="req-list" id="reqList">
+                <!-- Request items dynamically generated -->
+            </ul>
+        </div>
+
+        <!-- Right Pane (Details) -->
+        <main class="detail-pane" id="mainPanel">
+            <div class="placeholder" id="placeholder">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
+                <p>Select a request to inspect details</p>
+            </div>
+            
+            <div id="detailsPanel" style="display: none; height: 100%; flex-direction: column;">
+                <div class="detail-header">
+                    <span class="detail-method" id="dh-method">GET</span>
+                    <span class="detail-url" id="dh-url">https://example.com</span>
+                    <span class="req-status" id="dh-status"></span>
+                </div>
+
+                <div class="tabs">
+                    <div class="tab active" onclick="switchTab('headers')">Headers</div>
+                    <div class="tab" onclick="switchTab('reqBody')">Request</div>
+                    <div class="tab" onclick="switchTab('resBody')">Response / SSE</div>
+                </div>
+
+                <div class="content-area active" id="tab-headers"></div>
+                <div class="content-area" id="tab-reqBody"></div>
+                <div class="content-area" id="tab-resBody"></div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // State
+        const requests = {}; 
+        let activeReqId = null;
+        let currentFilter = 'all';
+
+        // WebSocket setup
+        const ws = new WebSocket(`ws://${location.host}/ws`);
+        
+        ws.onmessage = (event) => {
+            const msg = JSON.parse(event.data);
+            const id = msg.id;
+
+            if (msg.type === 'request') {
+                const now = new Date();
+                requests[id] = { 
+                    id, 
+                    request: msg.data, 
+                    response: null,
+                    stream: [],
+                    time: now.toLocaleTimeString('en-US', { hour12: false })
+                };
+                
+                updateCounts();
+                
+                // Only render if it matches filter
+                if (currentFilter === 'all' || requests[id].request.client_tool === currentFilter) {
+                    renderSidebarItem(id);
+                }
+            } 
+            else if (msg.type === 'response') {
+                if (requests[id]) {
+                    requests[id].response = msg.data;
+                    updateSidebarItem(id);
+                    if (activeReqId === id) renderDetails(id);
+                }
+            } 
+            else if (msg.type === 'stream_chunk') {
+                if (requests[id]) {
+                    requests[id].stream.push(msg.chunk);
+                    if (activeReqId === id) {
+                        const streamContainer = document.getElementById('tab-resBody');
+                        const span = document.createElement('span');
+                        span.className = 'stream-chunk';
+                        span.textContent = msg.chunk;
+                        streamContainer.appendChild(span);
+                        // Auto-scroll
+                        streamContainer.scrollTop = streamContainer.scrollHeight;
+                    }
+                }
+            }
+        };
+
+        function setFilter(agent) {
+            currentFilter = agent;
+            
+            // Update active state in nav
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            document.getElementById(`filter-${agent}`).classList.add('active');
+            
+            // Update list title
+            const titles = {
+                'all': 'All Requests',
+                'opencode': 'OpenCode Traffic',
+                'claude': 'Claude Code Traffic',
+                'codex': 'Codex Traffic',
+                'gemini': 'Gemini CLI Traffic'
+            };
+            document.getElementById('listHeaderTitle').textContent = titles[agent];
+
+            // Re-render list
+            const list = document.getElementById('reqList');
+            list.innerHTML = '';
+            
+            // Render matching requests (newest first)
+            Object.values(requests).reverse().forEach(req => {
+                if (agent === 'all' || req.request.client_tool === agent) {
+                    renderSidebarItem(req.id);
+                }
+            });
+
+            // Reselect active if still in view
+            if (activeReqId && document.getElementById(`item-${activeReqId}`)) {
+                document.getElementById(`item-${activeReqId}`).classList.add('active');
+            } else {
+                // Hide detail view
+                document.getElementById('placeholder').style.display = 'flex';
+                document.getElementById('detailsPanel').style.display = 'none';
+                activeReqId = null;
+            }
+        }
+
+        function updateCounts() {
+            const counts = { all: 0, opencode: 0, claude: 0, codex: 0, gemini: 0 };
+            
+            Object.values(requests).forEach(req => {
+                counts.all++;
+                const tool = req.request.client_tool;
+                if (counts[tool] !== undefined) counts[tool]++;
+            });
+
+            Object.keys(counts).forEach(k => {
+                const el = document.getElementById(`count-${k}`);
+                if (el) el.textContent = counts[k];
+            });
+        }
+
+        function clearRequests() {
+            // Clear dictionary keeping references safe
+            Object.keys(requests).forEach(k => delete requests[k]);
+            activeReqId = null;
+            updateCounts();
+            setFilter(currentFilter); // Re-renders list & handles UI reset
+        }
+
+        function syntaxHighlight(json) {
+            if (typeof json !== 'string') {
+                json = JSON.stringify(json, undefined, 2);
+            }
+            json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+                var cls = 'json-number';
+                if (/^"/.test(match)) {
+                    if (/:$/.test(match)) {
+                        cls = 'json-key';
+                    } else {
+                        cls = 'json-string';
+                    }
+                } else if (/true|false/.test(match)) {
+                    cls = 'json-boolean';
+                } else if (/null/.test(match)) {
+                    cls = 'json-number';
+                }
+                return '<span class="' + cls + '">' + match + '</span>';
+            });
+        }
+
+        function renderSidebarItem(id) {
+            const data = requests[id];
+            const req = data.request;
+            const res = data.response;
+            const list = document.getElementById('reqList');
+            
+            const li = document.createElement('li');
+            li.className = 'req-item';
+            li.id = `item-${id}`;
+            if (activeReqId === id) li.classList.add('active');
+            li.onclick = () => selectRequest(id);
+
+            // Badges
+            let badgesHtml = '';
+            if (req.client_tool) {
+                badgesHtml += `<span class="badge" style="text-transform: capitalize;">${req.client_tool}</span>`;
+            }
+            if (req.headers['content-type'] && req.headers['content-type'].includes('json')) {
+                badgesHtml += `<span class="badge">JSON</span>`;
+            }
+
+            // Status format
+            let statusHtml = `<span class="req-status status-pending" id="status-${id}">Pending</span>`;
+            if (res) {
+                const statusClass = (res.status >= 200 && res.status < 300) ? 'status-2xx' : 'status-err';
+                const sseMarker = res.streaming ? ' (SSE)' : '';
+                statusHtml = `<span class="req-status ${statusClass}" id="status-${id}">${res.status}${sseMarker}</span>`;
+            }
+
+            // Method color
+            const methodClass = `method-${req.method}`;
+
+            li.innerHTML = `
+                <div class="req-top">
+                    <span class="req-method ${methodClass}">${req.method}</span>
+                    ${statusHtml}
+                </div>
+                <div class="req-url">${req.url}</div>
+                <div class="req-bottom">
+                    <div class="badges">${badgesHtml}</div>
+                    <span class="req-time">${data.time}</span>
+                </div>
+            `;
+            
+            list.prepend(li);
+        }
+
+        function updateSidebarItem(id) {
+            if (currentFilter !== 'all' && requests[id].request.client_tool !== currentFilter) return;
+            
+            const li = document.getElementById(`item-${id}`);
+            if (li) {
+                // Efficiently recreate to maintain sorting order logic
+                li.remove();
+                renderSidebarItem(id);
+            }
+        }
+
+        function selectRequest(id) {
+            if (activeReqId) {
+                const prev = document.getElementById(`item-${activeReqId}`);
+                if (prev) prev.classList.remove('active');
+            }
+            activeReqId = id;
+            const curr = document.getElementById(`item-${id}`);
+            if (curr) curr.classList.add('active');
+
+            document.getElementById('placeholder').style.display = 'none';
+            document.getElementById('detailsPanel').style.display = 'flex';
+
+            renderDetails(id);
+        }
+
+        function buildTable(obj) {
+            if (!obj || Object.keys(obj).length === 0) return '<div class="empty-state">None</div>';
+            let html = '<table class="table-view">';
+            for (const [k, v] of Object.entries(obj)) {
+                html += `<tr><td>${k}</td><td>${v}</td></tr>`;
+            }
+            html += '</table>';
+            return html;
+        }
+
+        function renderDetails(id) {
+            const data = requests[id];
+            
+            // Header Bar
+            const methodEl = document.getElementById('dh-method');
+            methodEl.textContent = data.request.method;
+            methodEl.className = `detail-method method-${data.request.method}`;
+            
+            document.getElementById('dh-url').textContent = data.request.url;
+            
+            const statusEl = document.getElementById('dh-status');
+            if (data.response) {
+                statusEl.textContent = `${data.response.status} ${data.response.streaming ? '(SSE)' : ''}`;
+                statusEl.className = `req-status ${(data.response.status >= 200 && data.response.status < 300) ? 'status-2xx' : 'status-err'}`;
+            } else {
+                statusEl.textContent = 'Pending...';
+                statusEl.className = 'req-status status-pending';
+            }
+
+            // 1. Headers Tab
+            let headersHtml = `
+                <h3 style="margin-bottom: 10px; color: var(--text-primary); font-size: 13px;">Request Headers</h3>
+                ${buildTable(data.request.headers)}
+                <br><br>
+                <h3 style="margin-bottom: 10px; color: var(--text-primary); font-size: 13px;">Response Headers</h3>
+            `;
+            if (data.response) {
+                headersHtml += buildTable(data.response.headers);
+            } else {
+                headersHtml += '<div class="empty-state">Waiting for response...</div>';
+            }
+            document.getElementById('tab-headers').innerHTML = headersHtml;
+
+            // 2. Request Body Tab
+            const reqBody = data.request.body;
+            if (reqBody) {
+                if (typeof reqBody === 'object') {
+                    document.getElementById('tab-reqBody').innerHTML = `<pre>${syntaxHighlight(reqBody)}</pre>`;
+                } else {
+                    document.getElementById('tab-reqBody').innerHTML = `<pre style="color: var(--text-primary);">${reqBody}</pre>`;
+                }
+            } else {
+                document.getElementById('tab-reqBody').innerHTML = '<div class="empty-state">No Request Body</div>';
+            }
+
+            // 3. Response / SSE Tab
+            const resTab = document.getElementById('tab-resBody');
+            if (data.response && data.response.streaming) {
+                resTab.innerHTML = '';
+                data.stream.forEach(chunk => {
+                    const span = document.createElement('span');
+                    span.className = 'stream-chunk';
+                    span.textContent = chunk;
+                    resTab.appendChild(span);
+                });
+            } else if (data.response && data.response.body) {
+                if (typeof data.response.body === 'object') {
+                    resTab.innerHTML = `<pre>${syntaxHighlight(data.response.body)}</pre>`;
+                } else {
+                    resTab.innerHTML = `<pre style="color: var(--text-primary);">${data.response.body}</pre>`;
+                }
+            } else if (data.response) {
+                resTab.innerHTML = '<div class="empty-state">Empty Response</div>';
+            } else {
+                resTab.innerHTML = '<div class="empty-state">Waiting for response...</div>';
+            }
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.content-area').forEach(c => c.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+        }
+    </script>
+</body>
+</html>
