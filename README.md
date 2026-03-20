@@ -12,7 +12,6 @@ Think of it as a specialized [Proxyman](https://proxyman.io/) or Charles Proxy, 
 - **Live Web Dashboard**: A built-in WebSocket UI built with FastAPI that pushes requests, responses, and stream chunks directly to your browser.
 ![alt text](web-dashboard.png)
 ---
-
 ## 🏗️ Architecture
 
 The application runs two main asynchronous components concurrently on the same event loop:
