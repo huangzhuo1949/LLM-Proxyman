@@ -8,9 +8,9 @@ Think of it as a specialized [Proxyman](https://proxyman.io/) or Charles Proxy, 
 
 - **True HTTPS Interception**: Powered by `mitmproxy` under the hood. Capable of inspecting SSL/TLS encrypted traffic to `api.openai.com`, `api.anthropic.com`, etc.
 - **Real-Time Streaming Support**: Flawlessly intercepts and visualizes Server-Sent Events (SSE) streaming tokens in real-time. No more waiting for the full response to finish before seeing the payload!
-- **Live Web Dashboard**: A built-in WebSocket UI built with FastAPI that pushes requests, responses, and stream chunks directly to your browser.
 - **Developer Friendly**: Zero bloated electron apps. Just pure Python, async performance, and a fast browser UI.
-
+- **Live Web Dashboard**: A built-in WebSocket UI built with FastAPI that pushes requests, responses, and stream chunks directly to your browser.
+![alt text](web-dashboard.png)
 ---
 
 ## 🏗️ Architecture
