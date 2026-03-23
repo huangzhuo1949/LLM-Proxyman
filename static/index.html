@@ -263,6 +263,10 @@
                     <span>Gemini CLI</span>
                     <span class="nav-count" id="count-gemini">0</span>
                 </li>
+                <li class="nav-item" onclick="setFilter('other')" id="filter-other">
+                    <span>Other</span>
+                    <span class="nav-count" id="count-other">0</span>
+                </li>
             </ul>
         </aside>
 
@@ -311,6 +315,14 @@
         let currentFilter = 'all';
         let searchTerm = '';
 
+        function getToolCategory(req) {
+            const tool = req.client_tool;
+            if (['opencode', 'claude', 'codex', 'gemini'].includes(tool)) {
+                return tool;
+            }
+            return 'other';
+        }
+
         // Search Input Listener
         document.getElementById('req-search').addEventListener('input', (e) => {
             searchTerm = e.target.value.toLowerCase();
@@ -337,7 +349,8 @@
                 updateCounts();
                 
                 // Only render if it matches filter
-                const matchesFilter = (currentFilter === 'all' || requests[id].request.client_tool === currentFilter);
+                const tool = getToolCategory(requests[id].request);
+                const matchesFilter = (currentFilter === 'all' || tool === currentFilter);
                 const matchesSearch = (!searchTerm || requests[id].request.url.toLowerCase().includes(searchTerm));
                 
                 if (matchesFilter && matchesSearch) {
@@ -380,7 +393,8 @@
                 'opencode': 'OpenCode Traffic',
                 'claude': 'Claude Code Traffic',
                 'codex': 'Codex Traffic',
-                'gemini': 'Gemini CLI Traffic'
+                'gemini': 'Gemini CLI Traffic',
+                'other': 'Other Traffic'
             };
             document.getElementById('listHeaderTitle').textContent = titles[agent];
 
@@ -390,7 +404,8 @@
             
             // Render matching requests (newest first)
             Object.values(requests).forEach(req => {
-                const matchesAgent = (agent === 'all' || req.request.client_tool === agent);
+                const tool = getToolCategory(req.request);
+                const matchesAgent = (agent === 'all' || tool === agent);
                 const matchesSearch = (!searchTerm || req.request.url.toLowerCase().includes(searchTerm));
                 
                 if (matchesAgent && matchesSearch) {
@@ -410,12 +425,12 @@
         }
 
         function updateCounts() {
-            const counts = { all: 0, opencode: 0, claude: 0, codex: 0, gemini: 0 };
+            const counts = { all: 0, opencode: 0, claude: 0, codex: 0, gemini: 0, other: 0 };
             
             Object.values(requests).forEach(req => {
                 counts.all++;
-                const tool = req.request.client_tool;
-                if (counts[tool] !== undefined) counts[tool]++;
+                const tool = getToolCategory(req.request);
+                counts[tool]++;
             });
 
             Object.keys(counts).forEach(k => {
@@ -502,7 +517,8 @@
         }
 
         function updateSidebarItem(id) {
-            const matchesAgent = (currentFilter === 'all' || requests[id].request.client_tool === currentFilter);
+            const tool = getToolCategory(requests[id].request);
+            const matchesAgent = (currentFilter === 'all' || tool === currentFilter);
             const matchesSearch = (!searchTerm || requests[id].request.url.toLowerCase().includes(searchTerm));
             
             const li = document.getElementById(`item-${id}`);

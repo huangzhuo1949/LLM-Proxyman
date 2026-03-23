@@ -42,7 +42,7 @@ The application runs two main asynchronous components concurrently on the same e
 
 3. **Install dependencies**:
    ```bash
-   pip install -r requirement.txt
+   pip install -r requirements.txt
    ```
 
 ---
