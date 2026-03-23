@@ -269,6 +269,9 @@
         <!-- Middle Column (Request List) -->
         <div class="list-column">
             <div class="list-header" id="listHeaderTitle">All Requests</div>
+            <div class="search-box" style="padding: 10px; border-bottom: 1px solid var(--border); background: #252526;">
+                <input type="text" id="req-search" placeholder="Filter host/path..." style="width: 100%; padding: 6px; background: #1e1e1e; border: 1px solid #3e3e42; color: #cccccc; border-radius: 4px; outline: none; font-size: 12px;">
+            </div>
             <ul class="req-list" id="reqList">
                 <!-- Request items dynamically generated -->
             </ul>
@@ -306,6 +309,13 @@
         const requests = {}; 
         let activeReqId = null;
         let currentFilter = 'all';
+        let searchTerm = '';
+
+        // Search Input Listener
+        document.getElementById('req-search').addEventListener('input', (e) => {
+            searchTerm = e.target.value.toLowerCase();
+            setFilter(currentFilter);
+        });
 
         // WebSocket setup
         const ws = new WebSocket(`ws://${location.host}/ws`);
@@ -327,7 +337,10 @@
                 updateCounts();
                 
                 // Only render if it matches filter
-                if (currentFilter === 'all' || requests[id].request.client_tool === currentFilter) {
+                const matchesFilter = (currentFilter === 'all' || requests[id].request.client_tool === currentFilter);
+                const matchesSearch = (!searchTerm || requests[id].request.url.toLowerCase().includes(searchTerm));
+                
+                if (matchesFilter && matchesSearch) {
                     renderSidebarItem(id);
                 }
             } 
@@ -376,8 +389,11 @@
             list.innerHTML = '';
             
             // Render matching requests (newest first)
-            Object.values(requests).reverse().forEach(req => {
-                if (agent === 'all' || req.request.client_tool === agent) {
+            Object.values(requests).forEach(req => {
+                const matchesAgent = (agent === 'all' || req.request.client_tool === agent);
+                const matchesSearch = (!searchTerm || req.request.url.toLowerCase().includes(searchTerm));
+                
+                if (matchesAgent && matchesSearch) {
                     renderSidebarItem(req.id);
                 }
             });
@@ -486,12 +502,13 @@
         }
 
         function updateSidebarItem(id) {
-            if (currentFilter !== 'all' && requests[id].request.client_tool !== currentFilter) return;
+            const matchesAgent = (currentFilter === 'all' || requests[id].request.client_tool === currentFilter);
+            const matchesSearch = (!searchTerm || requests[id].request.url.toLowerCase().includes(searchTerm));
             
             const li = document.getElementById(`item-${id}`);
-            if (li) {
-                // Efficiently recreate to maintain sorting order logic
-                li.remove();
+            if (li) li.remove();
+            
+            if (matchesAgent && matchesSearch) {
                 renderSidebarItem(id);
             }
         }
