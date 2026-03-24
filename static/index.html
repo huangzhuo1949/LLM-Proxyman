@@ -213,6 +213,18 @@
         .json-number { color: #b5cea8; }
         .json-boolean { color: #569cd6; }
         
+        .json-tree { font-family: var(--font-mono); font-size: 12px; line-height: 1.5; display: block; }
+        .json-tree .json-line { display: block; }
+        .json-tree .collapsible,
+        .json-tree .collapsible-spacer { cursor: pointer; user-select: none; display: inline-block; width: 14px; text-align: center; color: #858585; transition: transform 0.1s; }
+        .json-tree .collapsible-spacer { cursor: default; }
+        .json-tree .collapsible:hover { color: #fff; }
+        .json-tree .collapsible.collapsed { transform: rotate(-90deg); }
+        .json-tree .collapsible-content { margin-left: 20px; border-left: 1px solid #333; padding-left: 8px; }
+        .json-tree .collapsible-content.hidden { display: none; }
+        .json-preview { color: #858585; font-style: italic; cursor: pointer; margin-left: 5px; }
+        .json-tree .key-wrapper { color: #9cdcfe; }
+
         .stream-chunk { display: inline; color: #d4d4d4; }
         
         .table-view { width: 100%; border-collapse: collapse; table-layout: fixed; }
@@ -226,12 +238,12 @@
 <body>
     <header>
         <div class="logo">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><title>App icon</title><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
             LLM Proxyman
         </div>
         <div class="header-actions">
-            <button class="btn-clear" onclick="clearRequests()">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            <button type="button" class="btn-clear" onclick="clearRequests()">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;"><title>Clear requests</title><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                 Clear
             </button>
             <div class="proxy-info">Proxy: 127.0.0.1:10080</div>
@@ -284,7 +296,7 @@
         <!-- Right Pane (Details) -->
         <main class="detail-pane" id="mainPanel">
             <div class="placeholder" id="placeholder">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><title>Select request placeholder</title><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
                 <p>Select a request to inspect details</p>
             </div>
             
@@ -384,7 +396,9 @@
             currentFilter = agent;
             
             // Update active state in nav
-            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach((el) => {
+                el.classList.remove('active');
+            });
             document.getElementById(`filter-${agent}`).classList.add('active');
             
             // Update list title
@@ -441,10 +455,255 @@
 
         function clearRequests() {
             // Clear dictionary keeping references safe
-            Object.keys(requests).forEach(k => delete requests[k]);
+            Object.keys(requests).forEach((k) => {
+                delete requests[k];
+            });
             activeReqId = null;
             updateCounts();
             setFilter(currentFilter); // Re-renders list & handles UI reset
+        }
+
+        function createJsonViewer(data, keyName = null) {
+            // Primitives
+            if (data === null || typeof data === 'boolean' || typeof data === 'number') {
+                return createPrimitiveNode(data, keyName);
+            }
+            if (typeof data === 'string') {
+                const parsedSubJson = tryParseNestedJson(data);
+                if (!parsedSubJson) {
+                    return createPrimitiveNode(data, keyName);
+                }
+
+                const wrapper = document.createElement('div');
+                wrapper.className = 'json-tree';
+
+                const header = document.createElement('div');
+                header.className = 'json-line';
+
+                const toggle = document.createElement('span');
+                toggle.className = 'collapsible collapsed';
+                toggle.textContent = '▼';
+                header.appendChild(toggle);
+
+                if (keyName !== null) {
+                    const keySpan = document.createElement('span');
+                    keySpan.className = 'key-wrapper';
+                    keySpan.textContent = `"${keyName}": `;
+                    header.appendChild(keySpan);
+                }
+
+                const label = createSpan('"[JSON string]"', 'json-string');
+                header.appendChild(label);
+
+                const preview = document.createElement('span');
+                preview.className = 'json-preview';
+                preview.style.display = 'inline';
+                const size = Array.isArray(parsedSubJson) ? parsedSubJson.length : Object.keys(parsedSubJson).length;
+                preview.textContent = `... parsed ${size} items ...`;
+                header.appendChild(preview);
+
+                const content = document.createElement('div');
+                content.className = 'collapsible-content hidden';
+                const parsedLine = document.createElement('div');
+                parsedLine.className = 'json-line';
+
+                const marker = document.createElement('span');
+                marker.className = 'collapsible-spacer';
+                marker.textContent = '(parsed) ';
+                marker.style.color = '#858585';
+                parsedLine.appendChild(marker);
+                parsedLine.appendChild(createJsonViewer(parsedSubJson));
+                content.appendChild(parsedLine);
+
+                const toggleFn = (e) => {
+                    e && e.stopPropagation();
+                    const isCollapsed = toggle.classList.toggle('collapsed');
+                    if (isCollapsed) {
+                        content.classList.add('hidden');
+                        preview.style.display = 'inline';
+                    } else {
+                        content.classList.remove('hidden');
+                        preview.style.display = 'none';
+                    }
+                };
+
+                toggle.onclick = toggleFn;
+                preview.onclick = toggleFn;
+
+                wrapper.appendChild(header);
+                wrapper.appendChild(content);
+                return wrapper;
+            }
+
+            // Arrays & Objects
+            const isArray = Array.isArray(data);
+            const container = document.createElement('div');
+            container.className = 'json-tree';
+
+            const headerLine = document.createElement('div');
+            headerLine.className = 'json-line';
+
+            // 1. Toggle Button
+            const toggle = document.createElement('span');
+            toggle.className = 'collapsible';
+            toggle.textContent = '▼';
+            headerLine.appendChild(toggle);
+
+            if (keyName !== null) {
+                const keySpan = document.createElement('span');
+                keySpan.className = 'key-wrapper';
+                keySpan.textContent = `"${keyName}": `;
+                headerLine.appendChild(keySpan);
+            }
+            
+            // 2. Open Bracket
+            const open = document.createElement('span');
+            open.textContent = isArray ? '[' : '{';
+            open.style.color = '#d4d4d4';
+            headerLine.appendChild(open);
+
+            // 3. Preview (hidden by default)
+            const preview = document.createElement('span');
+            preview.className = 'json-preview';
+            preview.style.display = 'none';
+            const size = isArray ? data.length : Object.keys(data).length;
+            preview.textContent = `... ${size} items ... ${isArray ? ']' : '}'}`;
+            headerLine.appendChild(preview);
+            
+            // 4. Content Container
+            const content = document.createElement('div');
+            content.className = 'collapsible-content';
+
+            // Event Handlers
+            const toggleFn = (e) => {
+                e && e.stopPropagation();
+                const isCollapsed = toggle.classList.toggle('collapsed');
+                if (isCollapsed) {
+                    content.classList.add('hidden');
+                    preview.style.display = 'inline';
+                } else {
+                    content.classList.remove('hidden');
+                    preview.style.display = 'none';
+                }
+            };
+            toggle.onclick = toggleFn;
+            preview.onclick = toggleFn;
+
+            // Populate Content
+            const entries = Object.entries(data);
+            if (entries.length === 0) {
+                // Empty object/array
+                toggle.style.visibility = 'hidden'; // No need to collapse empty
+                content.style.display = 'none'; // No content
+                open.textContent = isArray ? '[]' : '{}';
+                container.appendChild(headerLine);
+                return container;
+            }
+
+            entries.forEach(([key, value], index) => {
+                const valueNode = createJsonViewer(value, isArray ? null : key);
+                if (index < entries.length - 1) {
+                    appendInlineComma(valueNode);
+                }
+                content.appendChild(valueNode);
+            });
+
+            // 5. Close Bracket
+            const close = document.createElement('div');
+            close.className = 'json-line';
+            close.textContent = isArray ? ']' : '}';
+            close.style.color = '#d4d4d4';
+
+            container.appendChild(headerLine);
+            container.appendChild(content);
+            container.appendChild(close);
+
+            return container;
+        }
+
+        function createPrimitiveNode(value, keyName = null) {
+            const line = document.createElement('div');
+            line.className = 'json-line';
+
+            const spacer = document.createElement('span');
+            spacer.className = 'collapsible-spacer';
+            spacer.textContent = ' ';
+            line.appendChild(spacer);
+
+            if (keyName !== null) {
+                const keySpan = document.createElement('span');
+                keySpan.className = 'key-wrapper';
+                keySpan.textContent = `"${keyName}": `;
+                line.appendChild(keySpan);
+            }
+
+            if (value === null) {
+                line.appendChild(createSpan('null', 'json-number'));
+                return line;
+            }
+            if (typeof value === 'boolean') {
+                line.appendChild(createSpan(value.toString(), 'json-boolean'));
+                return line;
+            }
+            if (typeof value === 'number') {
+                line.appendChild(createSpan(value.toString(), 'json-number'));
+                return line;
+            }
+            line.appendChild(createSpan(`"${value}"`, 'json-string'));
+            return line;
+        }
+
+        function appendInlineComma(node) {
+            const comma = document.createElement('span');
+            comma.textContent = ',';
+            comma.style.color = '#d4d4d4';
+
+            if (node.classList?.contains('json-line')) {
+                node.appendChild(comma);
+                return;
+            }
+
+            const directLines = node.querySelectorAll(':scope > .json-line');
+            if (directLines.length > 0) {
+                directLines[directLines.length - 1].appendChild(comma);
+                return;
+            }
+
+            node.appendChild(comma);
+        }
+
+        function tryParseNestedJson(value) {
+            if (typeof value !== 'string') {
+                return null;
+            }
+
+            const trimmed = value.trim();
+            if (!trimmed) {
+                return null;
+            }
+
+            const likelyJsonObject = trimmed.startsWith('{') && trimmed.endsWith('}');
+            const likelyJsonArray = trimmed.startsWith('[') && trimmed.endsWith(']');
+            if (!likelyJsonObject && !likelyJsonArray) {
+                return null;
+            }
+
+            try {
+                const parsed = JSON.parse(trimmed);
+                if (parsed && typeof parsed === 'object') {
+                    return parsed;
+                }
+                return null;
+            } catch (_error) {
+                return null;
+            }
+        }
+
+        function createSpan(text, className) {
+            const span = document.createElement('span');
+            span.textContent = text;
+            span.className = className;
+            return span;
         }
 
         function syntaxHighlight(json) {
@@ -588,21 +847,25 @@
             document.getElementById('tab-headers').innerHTML = headersHtml;
 
             // 2. Request Body Tab
+            const reqTab = document.getElementById('tab-reqBody');
+            reqTab.innerHTML = '';
             const reqBody = data.request.body;
+            
             if (reqBody) {
                 if (typeof reqBody === 'object') {
-                    document.getElementById('tab-reqBody').innerHTML = `<pre>${syntaxHighlight(reqBody)}</pre>`;
+                    reqTab.appendChild(createJsonViewer(reqBody));
                 } else {
-                    document.getElementById('tab-reqBody').innerHTML = `<pre style="color: var(--text-primary);">${reqBody}</pre>`;
+                    reqTab.innerHTML = `<pre style="color: var(--text-primary);">${reqBody}</pre>`;
                 }
             } else {
-                document.getElementById('tab-reqBody').innerHTML = '<div class="empty-state">No Request Body</div>';
+                reqTab.innerHTML = '<div class="empty-state">No Request Body</div>';
             }
 
             // 3. Response / SSE Tab
             const resTab = document.getElementById('tab-resBody');
+            resTab.innerHTML = '';
+            
             if (data.response && data.response.streaming) {
-                resTab.innerHTML = '';
                 data.stream.forEach(chunk => {
                     const span = document.createElement('span');
                     span.className = 'stream-chunk';
@@ -611,7 +874,7 @@
                 });
             } else if (data.response && data.response.body) {
                 if (typeof data.response.body === 'object') {
-                    resTab.innerHTML = `<pre>${syntaxHighlight(data.response.body)}</pre>`;
+                    resTab.appendChild(createJsonViewer(data.response.body));
                 } else {
                     resTab.innerHTML = `<pre style="color: var(--text-primary);">${data.response.body}</pre>`;
                 }
@@ -623,8 +886,12 @@
         }
 
         function switchTab(tabName) {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.content-area').forEach(c => c.classList.remove('active'));
+            document.querySelectorAll('.tab').forEach((t) => {
+                t.classList.remove('active');
+            });
+            document.querySelectorAll('.content-area').forEach((c) => {
+                c.classList.remove('active');
+            });
             
             event.target.classList.add('active');
             document.getElementById(`tab-${tabName}`).classList.add('active');
